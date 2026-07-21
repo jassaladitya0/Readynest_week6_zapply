@@ -86,15 +86,65 @@ app.use((err, req, res, next) => {
 });
 
 // MongoDB connection configuration
+function sanitizeMongoURI(uri) {
+  if (!uri) return uri;
+  let str = uri.trim();
+  if ((str.startsWith('"') && str.endsWith('"')) || (str.startsWith("'") && str.endsWith("'"))) {
+    str = str.slice(1, -1).trim();
+  }
+
+  const match = str.match(/^(mongodb(?:\+srv)?:\/\/)(.*)$/i);
+  if (!match) return str;
+
+  const prefix = match[1];
+  const body = match[2];
+
+  // Find the last '@' before host
+  const lastAtIdx = body.lastIndexOf('@');
+  if (lastAtIdx === -1) {
+    return str; // No credentials part
+  }
+
+  const userPassPart = body.slice(0, lastAtIdx);
+  const hostAndRestPart = body.slice(lastAtIdx + 1);
+
+  const firstColonIdx = userPassPart.indexOf(':');
+  if (firstColonIdx === -1) {
+    return str;
+  }
+
+  const rawUser = userPassPart.slice(0, firstColonIdx);
+  const rawPass = userPassPart.slice(firstColonIdx + 1);
+
+  const encodePart = (val) => {
+    return val.replace(/[^a-zA-Z0-9_\.\-\~]/g, (char) => {
+      return '%' + char.charCodeAt(0).toString(16).toUpperCase();
+    });
+  };
+
+  let safePass = rawPass;
+  try {
+    const decoded = decodeURIComponent(rawPass);
+    safePass = encodePart(decoded);
+  } catch (e) {
+    safePass = encodePart(rawPass);
+  }
+
+  let safeUser = rawUser;
+  try {
+    const decoded = decodeURIComponent(rawUser);
+    safeUser = encodePart(decoded);
+  } catch (e) {
+    safeUser = encodePart(rawUser);
+  }
+
+  return `${prefix}${safeUser}:${safePass}@${hostAndRestPart}`;
+}
+
 let mongoURI = process.env.MONGODB_URI;
 
-// Clean up any potential formatting issues from environment variables (e.g. quotes or leading/trailing spaces)
 if (mongoURI) {
-  mongoURI = mongoURI.trim();
-  if ((mongoURI.startsWith('"') && mongoURI.endsWith('"')) || 
-      (mongoURI.startsWith("'") && mongoURI.endsWith("'"))) {
-    mongoURI = mongoURI.slice(1, -1).trim();
-  }
+  mongoURI = sanitizeMongoURI(mongoURI);
 }
 
 // Ensure MONGODB_URI is provided in production environment
@@ -144,6 +194,8 @@ mongoose.connect(mongoURI)
       if (!rawUri.startsWith('mongodb://') && !rawUri.startsWith('mongodb+srv://')) {
         console.log('💡 WARNING: Your MONGODB_URI must start with "mongodb://" or "mongodb+srv://".');
       }
+      console.log('💡 TIP: If your MongoDB password contains special characters (like @, #, $, %, ?, :, etc.), make sure they are URL-encoded (e.g., @ becomes %40).');
+      console.log('💡 TIP: Check MongoDB Atlas Network Access rules to allow access from anywhere (0.0.0.0/0) for Render.');
     } else {
       console.log('💡 MONGODB_URI environment variable is not defined.');
     }
