@@ -57,13 +57,6 @@ export default function RegisterPage() {
     const targetPhone = formatPhone(data.phone);
 
     try {
-      const avail = await authAPI.checkAvailability(undefined, targetPhone);
-      if (avail.phoneAvailable === false) {
-        toast.error('Phone number already registered');
-        setIsLoading(false);
-        return;
-      }
-
       if (isFirebaseConfigured) {
         try {
           const verifier = initRecaptcha('recaptcha-container');
@@ -77,7 +70,7 @@ export default function RegisterPage() {
             return;
           }
         } catch (fbErr: any) {
-          console.warn('Firebase OTP error, falling back:', fbErr);
+          console.warn('Firebase OTP error, falling back to backend OTP:', fbErr);
         }
       }
 

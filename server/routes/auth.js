@@ -32,7 +32,7 @@ router.post('/check-availability', async (req, res) => {
 
     if (phone) {
       const cleanPhone = normalizePhone(phone);
-      const exists = await User.findOne({ phone: cleanPhone });
+      const exists = await User.findOne({ phone: cleanPhone, isVerified: true });
       result.phoneAvailable = !exists;
     }
 
