@@ -10,6 +10,15 @@ const {
   sendOTP,
 } = require('../utils/auth');
 
+function normalizePhone(p) {
+  if (!p) return p;
+  let cleaned = String(p).replace(/[\s\-\(\)]/g, '');
+  if (cleaned.startsWith('00')) {
+    cleaned = '+' + cleaned.slice(2);
+  }
+  return cleaned;
+}
+
 // POST /api/auth/check-availability - Check if userId or phone is taken
 router.post('/check-availability', async (req, res) => {
   try {
@@ -22,7 +31,8 @@ router.post('/check-availability', async (req, res) => {
     }
 
     if (phone) {
-      const exists = await User.findOne({ phone });
+      const cleanPhone = normalizePhone(phone);
+      const exists = await User.findOne({ phone: cleanPhone });
       result.phoneAvailable = !exists;
     }
 
@@ -41,11 +51,7 @@ router.post('/send-otp', async (req, res) => {
       return res.status(400).json({ error: 'Phone number is required' });
     }
 
-    // Clean phone number format
-    phone = phone.replace(/[\s\-\(\)]/g, '');
-    if (phone.startsWith('00')) {
-      phone = '+' + phone.slice(2);
-    }
+    phone = normalizePhone(phone);
 
     // Basic digits validation (7 to 15 digits, optional +)
     if (!/^\+?\d{7,15}$/.test(phone)) {
@@ -103,12 +109,14 @@ router.post('/send-otp', async (req, res) => {
 // POST /api/auth/register - Register new user
 router.post('/register', async (req, res) => {
   try {
-    const { phone, userId, displayName, password, otp, publicKey } = req.body;
+    let { phone, userId, displayName, password, otp, publicKey } = req.body;
 
     // Validate required fields
     if (!phone || !userId || !displayName || !password || !otp || !publicKey) {
       return res.status(400).json({ error: 'All fields are required' });
     }
+
+    phone = normalizePhone(phone);
 
     if (password.length < 8) {
       return res.status(400).json({ error: 'Password must be at least 8 characters' });
@@ -211,10 +219,10 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Identifier and password required' });
     }
 
-    // Find user by phone or userId
-    const isPhone = /^\+?[1-9]\d{7,14}$/.test(identifier.replace(/\s/g, ''));
+    const cleanIdentifier = normalizePhone(identifier);
+    const isPhone = /^\+?\d{7,15}$/.test(cleanIdentifier);
     const user = await User.findOne(
-      isPhone ? { phone: identifier } : { userId: identifier.toLowerCase() }
+      isPhone ? { phone: cleanIdentifier } : { userId: identifier.toLowerCase() }
     );
 
     if (!user || !user.isVerified) {
