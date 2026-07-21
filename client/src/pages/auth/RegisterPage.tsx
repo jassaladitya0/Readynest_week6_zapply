@@ -43,11 +43,21 @@ export default function RegisterPage() {
   const form1 = useForm<Step1Data>({ resolver: zodResolver(step1Schema) });
   const form3 = useForm<Step3Data>({ resolver: zodResolver(step3Schema) });
 
+  const formatPhone = (p: string) => {
+    let cleaned = p.trim().replace(/[\s\-\(\)]/g, '');
+    if (!cleaned.startsWith('+')) {
+      cleaned = '+91' + cleaned.replace(/^0+/, '');
+    }
+    return cleaned;
+  };
+
   // Step 1: Send OTP
   const handleSendOTP = async (data: Step1Data) => {
     setIsLoading(true);
+    const targetPhone = formatPhone(data.phone);
+
     try {
-      const avail = await authAPI.checkAvailability(undefined, data.phone);
+      const avail = await authAPI.checkAvailability(undefined, targetPhone);
       if (avail.phoneAvailable === false) {
         toast.error('Phone number already registered');
         setIsLoading(false);
@@ -55,21 +65,25 @@ export default function RegisterPage() {
       }
 
       if (isFirebaseConfigured) {
-        const verifier = initRecaptcha('recaptcha-container');
-        if (verifier) {
-          const confirmation = await sendFirebasePhoneOTP(data.phone, verifier);
-          setFirebaseConfirmation(confirmation);
-          setPhone(data.phone);
-          toast.success('SMS OTP sent via Firebase! 📱');
-          setStep(2);
-          setIsLoading(false);
-          return;
+        try {
+          const verifier = initRecaptcha('recaptcha-container');
+          if (verifier) {
+            const confirmation = await sendFirebasePhoneOTP(targetPhone, verifier);
+            setFirebaseConfirmation(confirmation);
+            setPhone(targetPhone);
+            toast.success('SMS OTP sent via Firebase! 📱');
+            setStep(2);
+            setIsLoading(false);
+            return;
+          }
+        } catch (fbErr: any) {
+          console.warn('Firebase OTP error, falling back:', fbErr);
         }
       }
 
       // Fallback to backend API OTP
-      const res = await authAPI.sendOTP(data.phone, 'register');
-      setPhone(data.phone);
+      const res = await authAPI.sendOTP(targetPhone, 'register');
+      setPhone(targetPhone);
       const code = res.otp || (res.message?.match(/\d{6}/)?.[0]);
       if (code) {
         toast(`🔑 Your OTP is: ${code}`, { duration: 30000 });
@@ -78,7 +92,7 @@ export default function RegisterPage() {
       }
       setStep(2);
     } catch (err: any) {
-      toast.error(err.message || err.response?.data?.error || 'Failed to send OTP');
+      toast.error(err.response?.data?.error || err.message || 'Failed to send OTP');
     } finally {
       setIsLoading(false);
     }

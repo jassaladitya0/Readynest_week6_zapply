@@ -22,6 +22,14 @@ export default function LoginPage() {
   const [firebaseConfirmation, setFirebaseConfirmation] = useState<ConfirmationResult | null>(null);
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
+  const formatPhone = (p: string) => {
+    let cleaned = p.trim().replace(/[\s\-\(\)]/g, '');
+    if (!cleaned.startsWith('+')) {
+      cleaned = '+91' + cleaned.replace(/^0+/, '');
+    }
+    return cleaned;
+  };
+
   const handleStep1 = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!identifier || !password) return toast.error('Fill in all fields');
@@ -29,22 +37,27 @@ export default function LoginPage() {
     try {
       const res = await authAPI.login(identifier, password);
       if (res.requiresOTP) {
-        setPhone(res.phone);
+        const targetPhone = formatPhone(res.phone);
+        setPhone(targetPhone);
 
         if (isFirebaseConfigured) {
-          const verifier = initRecaptcha('recaptcha-container-login');
-          if (verifier) {
-            const confirmation = await sendFirebasePhoneOTP(res.phone, verifier);
-            setFirebaseConfirmation(confirmation);
-            toast.success('SMS OTP sent via Firebase! 📱');
-            setStep(2);
-            setIsLoading(false);
-            return;
+          try {
+            const verifier = initRecaptcha('recaptcha-container-login');
+            if (verifier) {
+              const confirmation = await sendFirebasePhoneOTP(targetPhone, verifier);
+              setFirebaseConfirmation(confirmation);
+              toast.success('SMS OTP sent via Firebase! 📱');
+              setStep(2);
+              setIsLoading(false);
+              return;
+            }
+          } catch (fbErr: any) {
+            console.warn('Firebase OTP login error, falling back:', fbErr);
           }
         }
 
         // Fallback to backend OTP
-        const otpRes = await authAPI.sendOTP(res.phone, 'login');
+        const otpRes = await authAPI.sendOTP(targetPhone, 'login');
         const code = otpRes.otp || (otpRes.message?.match(/\d{6}/)?.[0]);
         if (code) {
           toast(`🔑 Your OTP is: ${code}`, { duration: 30000 });
