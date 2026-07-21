@@ -24,7 +24,7 @@ function App() {
 
   return (
     <Router>
-      <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] font-sans antialiased overflow-hidden selection:bg-purple-500/30">
+      <div style={{ minHeight: '100vh', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)', fontFamily: 'Inter, sans-serif' }}>
         <AnimatePresence mode="wait">
           {incomingCall && <IncomingCallModal key="incoming-call" />}
         </AnimatePresence>

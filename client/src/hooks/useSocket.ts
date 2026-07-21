@@ -78,7 +78,7 @@ export const useSocket = () => {
         incrementUnread(conversationId);
 
         // Browser notification
-        if (Notification.permission === 'granted') {
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
           new Notification(`@${data.fromHandle}`, {
             body: content.length > 60 ? content.slice(0, 60) + '...' : content,
             icon: '/icons/icon-192.png',

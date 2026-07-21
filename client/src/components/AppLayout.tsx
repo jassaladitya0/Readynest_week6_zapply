@@ -29,7 +29,7 @@ export default function AppLayout() {
     const stopCleanup = startAutoCleanup();
 
     // Request notification permission
-    if (Notification.permission === 'default') {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
       Notification.requestPermission();
     }
 
