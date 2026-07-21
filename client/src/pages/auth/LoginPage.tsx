@@ -7,6 +7,9 @@ import { useAuthStore } from '../../store/authStore';
 import toast from 'react-hot-toast';
 import './Auth.css';
 
+import { isFirebaseConfigured, initRecaptcha, sendFirebasePhoneOTP } from '../../lib/firebase';
+import type { ConfirmationResult } from 'firebase/auth';
+
 export default function LoginPage() {
   const navigate = useNavigate();
   const { login } = useAuthStore();
@@ -16,6 +19,7 @@ export default function LoginPage() {
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [isLoading, setIsLoading] = useState(false);
+  const [firebaseConfirmation, setFirebaseConfirmation] = useState<ConfirmationResult | null>(null);
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const handleStep1 = async (e: React.FormEvent) => {
@@ -26,7 +30,20 @@ export default function LoginPage() {
       const res = await authAPI.login(identifier, password);
       if (res.requiresOTP) {
         setPhone(res.phone);
-        // Send OTP
+
+        if (isFirebaseConfigured) {
+          const verifier = initRecaptcha('recaptcha-container-login');
+          if (verifier) {
+            const confirmation = await sendFirebasePhoneOTP(res.phone, verifier);
+            setFirebaseConfirmation(confirmation);
+            toast.success('SMS OTP sent via Firebase! 📱');
+            setStep(2);
+            setIsLoading(false);
+            return;
+          }
+        }
+
+        // Fallback to backend OTP
         const otpRes = await authAPI.sendOTP(res.phone, 'login');
         const code = otpRes.otp || (otpRes.message?.match(/\d{6}/)?.[0]);
         if (code) {
@@ -62,6 +79,9 @@ export default function LoginPage() {
     if (code.length < 6) return toast.error('Enter the full 6-digit code');
     setIsLoading(true);
     try {
+      if (firebaseConfirmation) {
+        await firebaseConfirmation.confirm(code);
+      }
       const res = await authAPI.login(identifier, password, code);
       login(res.user, res.accessToken, res.refreshToken);
       toast.success(`Welcome back, ${res.user.displayName}! 👋`);
@@ -75,6 +95,7 @@ export default function LoginPage() {
 
   return (
     <div className="auth-page">
+      <div id="recaptcha-container-login"></div>
       <div className="auth-bg">
         <div className="auth-orb auth-orb-1" />
         <div className="auth-orb auth-orb-2" />

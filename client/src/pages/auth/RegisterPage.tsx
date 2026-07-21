@@ -24,6 +24,9 @@ const step3Schema = z.object({
 type Step1Data = z.infer<typeof step1Schema>;
 type Step3Data = z.infer<typeof step3Schema>;
 
+import { isFirebaseConfigured, initRecaptcha, sendFirebasePhoneOTP } from '../../lib/firebase';
+import type { ConfirmationResult } from 'firebase/auth';
+
 export default function RegisterPage() {
   const navigate = useNavigate();
   const { login } = useAuthStore();
@@ -33,6 +36,7 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [userIdAvailable, setUserIdAvailable] = useState<boolean | null>(null);
   const [checkingUserId, setCheckingUserId] = useState(false);
+  const [firebaseConfirmation, setFirebaseConfirmation] = useState<ConfirmationResult | null>(null);
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
   const userIdTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -43,6 +47,27 @@ export default function RegisterPage() {
   const handleSendOTP = async (data: Step1Data) => {
     setIsLoading(true);
     try {
+      const avail = await authAPI.checkAvailability(undefined, data.phone);
+      if (avail.phoneAvailable === false) {
+        toast.error('Phone number already registered');
+        setIsLoading(false);
+        return;
+      }
+
+      if (isFirebaseConfigured) {
+        const verifier = initRecaptcha('recaptcha-container');
+        if (verifier) {
+          const confirmation = await sendFirebasePhoneOTP(data.phone, verifier);
+          setFirebaseConfirmation(confirmation);
+          setPhone(data.phone);
+          toast.success('SMS OTP sent via Firebase! 📱');
+          setStep(2);
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Fallback to backend API OTP
       const res = await authAPI.sendOTP(data.phone, 'register');
       setPhone(data.phone);
       const code = res.otp || (res.message?.match(/\d{6}/)?.[0]);
@@ -53,7 +78,7 @@ export default function RegisterPage() {
       }
       setStep(2);
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Failed to send OTP');
+      toast.error(err.message || err.response?.data?.error || 'Failed to send OTP');
     } finally {
       setIsLoading(false);
     }
@@ -85,12 +110,27 @@ export default function RegisterPage() {
   };
 
   // Step 2: Verify OTP
-  const handleVerifyOTP = () => {
+  const handleVerifyOTP = async () => {
     const code = otp.join('');
     if (code.length < 6) {
       toast.error('Enter the complete 6-digit OTP');
       return;
     }
+
+    if (firebaseConfirmation) {
+      setIsLoading(true);
+      try {
+        await firebaseConfirmation.confirm(code);
+        toast.success('Phone verified via Firebase! ✅');
+        setStep(3);
+      } catch (err: any) {
+        toast.error('Invalid Firebase OTP code');
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
     setStep(3);
   };
 
@@ -141,6 +181,7 @@ export default function RegisterPage() {
 
   return (
     <div className="auth-page">
+      <div id="recaptcha-container"></div>
       <div className="auth-bg">
         <div className="auth-orb auth-orb-1" />
         <div className="auth-orb auth-orb-2" />
