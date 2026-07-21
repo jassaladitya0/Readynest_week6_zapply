@@ -31,6 +31,12 @@
     <!-- Security headers via meta (backup for CSP) -->
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
     
+    <!-- Polyfill global for browser dependencies -->
+    <script>
+      window.global = window;
+      window.process = { env: {} };
+    </script>
+    
     <title>Zapply Chat — Secure Messaging</title>
   </head>
   <body>
