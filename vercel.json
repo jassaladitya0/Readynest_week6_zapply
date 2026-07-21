@@ -3,7 +3,7 @@
   "outputDirectory": "client/dist",
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/((?!assets/|icons/|favicon|manifest|sw\\.js|.*\\.).*)",
       "destination": "/index.html"
     }
   ]
