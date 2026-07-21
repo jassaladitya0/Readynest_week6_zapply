@@ -35,10 +35,21 @@ router.post('/check-availability', async (req, res) => {
 // POST /api/auth/send-otp - Send OTP to phone
 router.post('/send-otp', async (req, res) => {
   try {
-    const { phone, purpose } = req.body; // purpose: 'register' | 'login'
+    let { phone, purpose } = req.body; // purpose: 'register' | 'login'
 
-    if (!phone || !/^\+?[1-9]\d{7,14}$/.test(phone.replace(/\s/g, ''))) {
-      return res.status(400).json({ error: 'Invalid phone number' });
+    if (!phone) {
+      return res.status(400).json({ error: 'Phone number is required' });
+    }
+
+    // Clean phone number format
+    phone = phone.replace(/[\s\-\(\)]/g, '');
+    if (phone.startsWith('00')) {
+      phone = '+' + phone.slice(2);
+    }
+
+    // Basic digits validation (7 to 15 digits, optional +)
+    if (!/^\+?\d{7,15}$/.test(phone)) {
+      return res.status(400).json({ error: 'Invalid phone number format' });
     }
 
     if (purpose === 'login') {
@@ -73,10 +84,13 @@ router.post('/send-otp', async (req, res) => {
 
     await sendOTP(phone, otp);
 
+    const isMock = process.env.MOCK_OTP !== 'false' || !process.env.TWILIO_ACCOUNT_SID;
+
     res.json({
       success: true,
-      message: process.env.MOCK_OTP === 'true'
-        ? `OTP sent (check server console): ${otp}` // Remove in production!
+      otp: isMock ? otp : undefined,
+      message: isMock
+        ? `OTP code: ${otp}`
         : 'OTP sent to your phone number',
       expiresIn: (parseInt(process.env.OTP_EXPIRY_MINUTES) || 2) * 60,
     });

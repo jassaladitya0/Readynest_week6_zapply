@@ -45,10 +45,11 @@ export default function RegisterPage() {
     try {
       const res = await authAPI.sendOTP(data.phone, 'register');
       setPhone(data.phone);
-      toast.success('OTP sent! Check your phone (or server console in dev mode)');
-      // Show OTP in toast for dev
-      if (res.message?.includes('check server console')) {
-        toast(`Dev OTP: ${res.message}`, { duration: 30000, icon: '🔑' });
+      const code = res.otp || (res.message?.match(/\d{6}/)?.[0]);
+      if (code) {
+        toast(`🔑 Your OTP is: ${code}`, { duration: 30000 });
+      } else {
+        toast.success(res.message || 'OTP sent to your phone');
       }
       setStep(2);
     } catch (err: any) {

@@ -31,6 +31,6 @@ services:
       - key: ADMIN_SECRET_KEY
         sync: false
       - key: MOCK_OTP
-        value: false
+        value: true
       - key: OTP_EXPIRY_MINUTES
         value: 2

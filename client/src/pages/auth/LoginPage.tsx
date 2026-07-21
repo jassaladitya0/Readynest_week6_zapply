@@ -28,10 +28,12 @@ export default function LoginPage() {
         setPhone(res.phone);
         // Send OTP
         const otpRes = await authAPI.sendOTP(res.phone, 'login');
-        if (otpRes.message?.includes('check server console')) {
-          toast(`Dev OTP: ${otpRes.message}`, { duration: 30000, icon: '🔑' });
+        const code = otpRes.otp || (otpRes.message?.match(/\d{6}/)?.[0]);
+        if (code) {
+          toast(`🔑 Your OTP is: ${code}`, { duration: 30000 });
+        } else {
+          toast.success(otpRes.message || 'OTP sent to your phone');
         }
-        toast.success('OTP sent to your phone');
         setStep(2);
       }
     } catch (err: any) {
