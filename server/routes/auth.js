@@ -239,12 +239,8 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // If OTP provided, verify it (second step)
-    if (otp) {
-      if (!user.otp.code) {
-        return res.status(400).json({ error: 'No OTP found. Request a new one.' });
-      }
-
+    // If OTP provided, verify it (second step for 2FA)
+    if (otp && user.otp && user.otp.code) {
       if (new Date() > user.otp.expiresAt) {
         return res.status(400).json({ error: 'OTP expired' });
       }
@@ -261,9 +257,6 @@ router.post('/login', async (req, res) => {
 
       // Clear OTP
       user.otp = { code: null, expiresAt: null, attempts: 0 };
-    } else {
-      // Step 1: password correct, send OTP
-      return res.json({ requiresOTP: true, phone: user.phone });
     }
 
     if (user.isSuspendedNow()) {
