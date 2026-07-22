@@ -53,10 +53,12 @@ export default function LoginPage() {
             }
           } catch (fbErr: any) {
             console.warn('Firebase OTP login error, falling back:', fbErr);
+            toast.error(`Firebase Auth failed: ${fbErr.code || fbErr.message || 'Error'}. Trying fallback OTP...`, { duration: 5000 });
           }
         }
 
         // Fallback to backend OTP
+        toast('Waking up server database, please wait...', { icon: '⏳', duration: 4000 });
         const otpRes = await authAPI.sendOTP(targetPhone, 'login');
         const code = otpRes.otp || (otpRes.message?.match(/\d{6}/)?.[0]);
         if (code) {
@@ -67,7 +69,7 @@ export default function LoginPage() {
         setStep(2);
       }
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Login failed');
+      toast.error(err.response?.data?.error || err.message || 'Login failed. Server might be starting up. Please try again.');
     } finally {
       setIsLoading(false);
     }

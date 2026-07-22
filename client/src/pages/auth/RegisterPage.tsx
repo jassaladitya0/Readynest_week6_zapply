@@ -71,10 +71,12 @@ export default function RegisterPage() {
           }
         } catch (fbErr: any) {
           console.warn('Firebase OTP error, falling back to backend OTP:', fbErr);
+          toast.error(`Firebase Auth failed: ${fbErr.code || fbErr.message || 'Error'}. Trying fallback OTP...`, { duration: 5000 });
         }
       }
 
       // Fallback to backend API OTP
+      toast('Waking up server database, please wait...', { icon: '⏳', duration: 4000 });
       const res = await authAPI.sendOTP(targetPhone, 'register');
       setPhone(targetPhone);
       const code = res.otp || (res.message?.match(/\d{6}/)?.[0]);
@@ -85,7 +87,7 @@ export default function RegisterPage() {
       }
       setStep(2);
     } catch (err: any) {
-      toast.error(err.response?.data?.error || err.message || 'Failed to send OTP');
+      toast.error(err.response?.data?.error || err.message || 'Failed to send OTP. Server might be starting up. Please try again.');
     } finally {
       setIsLoading(false);
     }
