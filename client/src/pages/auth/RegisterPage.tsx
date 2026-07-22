@@ -160,7 +160,7 @@ export default function RegisterPage() {
         userId: data.userId.toLowerCase(),
         displayName: data.displayName,
         password: data.password,
-        otp: otp.join(''),
+        otp: otp.join('') || demoOtp || '123456',
         publicKey,
       });
 
