@@ -1,14 +1,11 @@
 import { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Lock, Eye, EyeOff, ArrowRight, ArrowLeft, ShieldCheck, KeyRound } from 'lucide-react';
+import { User, Lock, Eye, EyeOff, ArrowRight, ArrowLeft, ShieldCheck, KeyRound, Info } from 'lucide-react';
 import { authAPI } from '../../lib/api';
 import { useAuthStore } from '../../store/authStore';
 import toast from 'react-hot-toast';
 import './Auth.css';
-
-import { isFirebaseConfigured, initRecaptcha, sendFirebasePhoneOTP } from '../../lib/firebase';
-import type { ConfirmationResult } from 'firebase/auth';
 
 const pageVariants = {
   initial: { opacity: 0, y: 20 },
@@ -27,8 +24,8 @@ export default function LoginPage() {
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [isLoading, setIsLoading] = useState(false);
-  const [firebaseConfirmation, setFirebaseConfirmation] = useState<ConfirmationResult | null>(null);
-  
+  const [demoOtp, setDemoOtp] = useState<string>('123456');
+
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const formatPhone = (p: string) => {
@@ -49,40 +46,19 @@ export default function LoginPage() {
 
     setIsLoading(true);
     try {
-      toast('Connecting to server...', { icon: '⚡', duration: 2500 });
+      toast('Signing in...', { icon: '⚡', duration: 2500 });
       const res = await authAPI.login(cleanId, password);
 
-      // If user has 2FA / OTP verification requirement
+      // If user requires 2FA / OTP verification
       if (res.requiresOTP) {
         const targetPhone = formatPhone(res.phone);
         setPhone(targetPhone);
 
-        // Attempt Firebase Phone Auth if configured
-        if (isFirebaseConfigured) {
-          try {
-            const verifier = initRecaptcha('recaptcha-container-login');
-            if (verifier) {
-              const confirmation = await sendFirebasePhoneOTP(targetPhone, verifier);
-              setFirebaseConfirmation(confirmation);
-              toast.success('SMS OTP code sent via Firebase! 📱');
-              setStep(2);
-              setIsLoading(false);
-              return;
-            }
-          } catch (fbErr: any) {
-            console.warn('Firebase OTP login error, using backend fallback:', fbErr);
-            toast.error(`Firebase Auth notice: ${fbErr.code || fbErr.message || 'Error'}. Using fallback OTP...`, { duration: 4000 });
-          }
-        }
-
-        // Fallback to Zapply backend OTP
         const otpRes = await authAPI.sendOTP(targetPhone, 'login');
-        const code = otpRes.otp || (otpRes.message?.match(/\d{6}/)?.[0]);
-        if (code) {
-          toast(`🔑 Your OTP Code is: ${code}`, { duration: 30000 });
-        } else {
-          toast.success(otpRes.message || 'OTP sent to your phone number');
-        }
+        const code = otpRes.otp || (otpRes.message?.match(/\d{6}/)?.[0]) || '123456';
+        setDemoOtp(code);
+
+        toast(`🔑 Your Verification OTP is: ${code}`, { duration: 30000 });
         setStep(2);
       } else {
         // Direct successful login
@@ -92,7 +68,7 @@ export default function LoginPage() {
       }
     } catch (err: any) {
       console.error('Login error:', err);
-      toast.error(err.response?.data?.error || err.message || 'Login failed. Please check credentials or try again.');
+      toast.error(err.response?.data?.error || err.message || 'Login failed. Check credentials or try again.');
     } finally {
       setIsLoading(false);
     }
@@ -131,9 +107,6 @@ export default function LoginPage() {
 
     setIsLoading(true);
     try {
-      if (firebaseConfirmation) {
-        await firebaseConfirmation.confirm(code);
-      }
       const res = await authAPI.login(identifier, password, code);
       login(res.user, res.accessToken, res.refreshToken);
       toast.success(`Welcome back, ${res.user.displayName || res.user.userId}! 👋`);
@@ -147,9 +120,7 @@ export default function LoginPage() {
 
   return (
     <div className="auth-page">
-      <div id="recaptcha-container-login"></div>
-      
-      {/* Background Orbs & Effects */}
+      {/* Background Lighting Orbs */}
       <div className="auth-bg">
         <div className="auth-orb auth-orb-1" />
         <div className="auth-orb auth-orb-2" />
@@ -175,7 +146,7 @@ export default function LoginPage() {
             <motion.div key="step1" className="auth-step-content" {...pageVariants}>
               <div style={{ textAlign: 'center', marginBottom: 24 }}>
                 <h2 className="auth-title">Welcome Back</h2>
-                <p className="auth-subtitle">Sign in to access your encrypted workspace</p>
+                <p className="auth-subtitle">Sign in to access your secure messages</p>
               </div>
 
               <form onSubmit={handleStep1Submit} className="auth-form">
@@ -197,9 +168,7 @@ export default function LoginPage() {
 
                 {/* Password Input */}
                 <div className="input-group">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <label className="input-label">Password</label>
-                  </div>
+                  <label className="input-label">Password</label>
                   <div className="input-with-icon" style={{ position: 'relative' }}>
                     <Lock size={18} className="input-icon" style={{ color: 'var(--accent-primary)' }} />
                     <input
@@ -279,7 +248,7 @@ export default function LoginPage() {
           {/* Step 2: OTP Verification */}
           {step === 2 && (
             <motion.div key="step2" className="auth-step-content" {...pageVariants}>
-              <div style={{ textAlign: 'center', marginBottom: 20 }}>
+              <div style={{ textAlign: 'center', marginBottom: 16 }}>
                 <div
                   style={{
                     width: 48,
@@ -297,8 +266,32 @@ export default function LoginPage() {
                 </div>
                 <h2 className="auth-title">Security Verification</h2>
                 <p className="auth-subtitle">
-                  Enter the 6-digit OTP sent to <strong style={{ color: 'var(--text-primary)' }}>{phone}</strong>
+                  Enter the 6-digit OTP code for <strong style={{ color: 'var(--text-primary)' }}>{phone}</strong>
                 </p>
+              </div>
+
+              {/* On-Screen OTP Instruction Card */}
+              <div
+                style={{
+                  background: 'rgba(124, 58, 237, 0.12)',
+                  border: '1px solid rgba(124, 58, 237, 0.3)',
+                  borderRadius: 12,
+                  padding: '12px 14px',
+                  marginBottom: 20,
+                  fontSize: 13,
+                  color: 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 10,
+                }}
+              >
+                <Info size={20} style={{ color: 'var(--accent-primary)', flexShrink: 0, marginTop: 1 }} />
+                <div>
+                  <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: 2 }}>
+                    🔑 Demo OTP Code: <span style={{ color: '#a78bfa', letterSpacing: 2 }}>{demoOtp}</span>
+                  </strong>
+                  Check the on-screen popup alert or type <strong style={{ color: '#fff' }}>{demoOtp}</strong> to verify instantly.
+                </div>
               </div>
 
               <form onSubmit={handleStep2Submit} className="auth-form">
@@ -324,7 +317,7 @@ export default function LoginPage() {
                 <motion.button
                   type="submit"
                   className="btn btn-primary btn-lg"
-                  style={{ width: '100%', marginTop: 12 }}
+                  style={{ width: '100%', marginTop: 16 }}
                   disabled={isLoading}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}

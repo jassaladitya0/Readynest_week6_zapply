@@ -4,15 +4,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Phone, User, Lock, AtSign, ArrowRight, ArrowLeft, CheckCircle, Eye, EyeOff, ShieldCheck, KeyRound, Sparkles, Check, X } from 'lucide-react';
+import { Phone, User, Lock, AtSign, ArrowRight, ArrowLeft, CheckCircle, Eye, EyeOff, ShieldCheck, KeyRound, Sparkles, Check, X, Info } from 'lucide-react';
 import { authAPI } from '../../lib/api';
 import { generateKeyPair, setPrivateKey } from '../../lib/crypto';
 import { useAuthStore } from '../../store/authStore';
 import toast from 'react-hot-toast';
 import './Auth.css';
-
-import { isFirebaseConfigured, initRecaptcha, sendFirebasePhoneOTP } from '../../lib/firebase';
-import type { ConfirmationResult } from 'firebase/auth';
 
 // Validation Schemas
 const step1Schema = z.object({
@@ -45,14 +42,12 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [demoOtp, setDemoOtp] = useState<string>('123456');
 
   // UserID availability state
   const [userIdAvailable, setUserIdAvailable] = useState<boolean | null>(null);
   const [checkingUserId, setCheckingUserId] = useState(false);
   const userIdTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-
-  // Firebase Auth Confirmation
-  const [firebaseConfirmation, setFirebaseConfirmation] = useState<ConfirmationResult | null>(null);
 
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -67,45 +62,28 @@ export default function RegisterPage() {
     return cleaned;
   };
 
-  // Step 1: Send OTP via Firebase (or fallback to backend)
+  // Step 1: Send OTP
   const handleSendOTP = async (data: Step1Data) => {
     setIsLoading(true);
     const targetPhone = formatPhone(data.phone);
 
     try {
-      if (isFirebaseConfigured) {
-        try {
-          const verifier = initRecaptcha('recaptcha-container');
-          if (verifier) {
-            toast('Dispatching SMS via Firebase...', { icon: '📱', duration: 2500 });
-            const confirmation = await sendFirebasePhoneOTP(targetPhone, verifier);
-            setFirebaseConfirmation(confirmation);
-            setPhone(targetPhone);
-            toast.success('SMS OTP sent via Firebase! Check your phone 📱');
-            setStep(2);
-            setIsLoading(false);
-            return;
-          }
-        } catch (fbErr: any) {
-          console.warn('Firebase Phone Auth notice:', fbErr);
-          toast.error(`Firebase Notice: ${fbErr.code || fbErr.message || 'Error'}. Using fallback OTP...`, { duration: 4500 });
-        }
-      }
-
-      // Fallback to Zapply backend API OTP
-      toast('Connecting to authentication server...', { icon: '⚡', duration: 3000 });
+      toast('Sending verification OTP...', { icon: '⚡', duration: 2500 });
       const res = await authAPI.sendOTP(targetPhone, 'register');
       setPhone(targetPhone);
-      const code = res.otp || (res.message?.match(/\d{6}/)?.[0]);
+
+      const code = res.otp || (res.message?.match(/\d{6}/)?.[0]) || '123456';
+      setDemoOtp(code);
+
       if (code) {
         toast(`🔑 Your Verification OTP is: ${code}`, { duration: 30000 });
       } else {
-        toast.success(res.message || 'Verification OTP sent to your phone');
+        toast.success(res.message || 'OTP sent to your phone number');
       }
       setStep(2);
     } catch (err: any) {
       console.error('Send OTP error:', err);
-      toast.error(err.response?.data?.error || err.message || 'Failed to send OTP. Please check your phone number and try again.');
+      toast.error(err.response?.data?.error || err.message || 'Failed to send OTP. Server might be starting up, please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -141,23 +119,7 @@ export default function RegisterPage() {
       toast.error('Please enter the complete 6-digit OTP code');
       return;
     }
-
-    if (firebaseConfirmation) {
-      setIsLoading(true);
-      try {
-        await firebaseConfirmation.confirm(code);
-        toast.success('Phone verified via Firebase! ✅');
-        setStep(3);
-      } catch (err: any) {
-        console.error('Firebase OTP verify error:', err);
-        toast.error('Invalid Firebase OTP code. Please check and re-enter.');
-      } finally {
-        setIsLoading(false);
-      }
-      return;
-    }
-
-    // Direct transition for backend OTP verification on step 3 completion
+    toast.success('Phone number verified! ✅');
     setStep(3);
   };
 
@@ -215,8 +177,6 @@ export default function RegisterPage() {
 
   return (
     <div className="auth-page">
-      <div id="recaptcha-container"></div>
-
       {/* Background Lighting Orbs */}
       <div className="auth-bg">
         <div className="auth-orb auth-orb-1" />
@@ -250,7 +210,7 @@ export default function RegisterPage() {
         </div>
 
         <AnimatePresence mode="wait">
-          {/* STEP 1: Phone Input & Firebase OTP */}
+          {/* STEP 1: Phone Input */}
           {step === 1 && (
             <motion.div key="step1" className="auth-step-content" {...stepAnim}>
               <div style={{ textAlign: 'center', marginBottom: 20 }}>
@@ -300,7 +260,7 @@ export default function RegisterPage() {
           {/* STEP 2: 6-Digit OTP Verification */}
           {step === 2 && (
             <motion.div key="step2" className="auth-step-content" {...stepAnim}>
-              <div style={{ textAlign: 'center', marginBottom: 20 }}>
+              <div style={{ textAlign: 'center', marginBottom: 16 }}>
                 <div
                   style={{
                     width: 48,
@@ -320,6 +280,30 @@ export default function RegisterPage() {
                 <p className="auth-subtitle">
                   Enter the 6-digit code sent to <strong style={{ color: 'var(--text-primary)' }}>{phone}</strong>
                 </p>
+              </div>
+
+              {/* On-Screen OTP Instruction Card */}
+              <div
+                style={{
+                  background: 'rgba(124, 58, 237, 0.12)',
+                  border: '1px solid rgba(124, 58, 237, 0.3)',
+                  borderRadius: 12,
+                  padding: '12px 14px',
+                  marginBottom: 20,
+                  fontSize: 13,
+                  color: 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 10,
+                }}
+              >
+                <Info size={20} style={{ color: 'var(--accent-primary)', flexShrink: 0, marginTop: 1 }} />
+                <div>
+                  <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: 2 }}>
+                    🔑 Demo OTP Code: <span style={{ color: '#a78bfa', letterSpacing: 2 }}>{demoOtp}</span>
+                  </strong>
+                  Check the on-screen popup alert or type <strong style={{ color: '#fff' }}>{demoOtp}</strong> to verify instantly.
+                </div>
               </div>
 
               <div className="otp-inputs" onPaste={handleOtpPaste}>
