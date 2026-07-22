@@ -85,7 +85,7 @@ router.post('/send-otp', async (req, res) => {
           'otp.attempts': 0,
         }
       },
-      { upsert: purpose === 'register', new: true }
+      { upsert: purpose === 'register', new: true, runValidators: false }
     );
 
     await sendOTP(phone, otp);

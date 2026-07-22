@@ -4,8 +4,8 @@ const bcrypt = require('bcryptjs');
 const userSchema = new mongoose.Schema({
   userId: {
     type: String,
-    required: true,
     unique: true,
+    sparse: true,
     trim: true,
     lowercase: true,
     minlength: 3,
@@ -20,17 +20,17 @@ const userSchema = new mongoose.Schema({
   },
   phoneHash: {
     type: String,
-    required: true,
+    default: '',
   },
   passwordHash: {
     type: String,
-    required: true,
+    default: '',
   },
   displayName: {
     type: String,
-    required: true,
     trim: true,
     maxlength: 50,
+    default: '',
   },
   avatar: {
     type: String, // base64 string (profile pic only)
@@ -43,7 +43,7 @@ const userSchema = new mongoose.Schema({
   },
   publicKey: {
     type: String, // E2E encryption public key (base64)
-    required: true,
+    default: '',
   },
   isVerified: {
     type: Boolean,
